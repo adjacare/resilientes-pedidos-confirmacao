@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor QR Code com Tabela</title>
+    <script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        #preview {
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #000;
+            transform: scaleX(-1); /* Espelhamento da câmera */
+        }
+
+        #resultado {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            font-size: 18px;
+            color: #333;
+        }
+
+        table {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 400px;
+            border-collapse: collapse;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1><strong>Leitor de QR Code</strong></h1>
+    <!-- Vídeo para capturar o QR Code -->
+    <video id="preview"></video>
+    
+    <!-- Div para exibir o resultado do QR Code -->
+    <div id="resultado">Aguardando leitura do QR Code...</div>
+
+    <!-- Tabela para exibir os QR Codes -->
+    <table>
+        <thead>
+            <tr>
+                <th>QR Code</th>
+                <th>Data/Hora</th>
+            </tr>
+        </thead>
+        <tbody id="qrcodeTable">
+            <!-- As leituras de QR codes aparecerão aqui -->
+        </tbody>
+    </table>
+
+    <script>
+        // Configurando a câmera para ler o QR Code
+        let scanner = new Instascan.Scanner({ video: document.getElementById('preview'), mirror: false });
+        scanner.addListener('scan', function (content) {
+            // Exibe o conteúdo do QR Code no div de resultado
+            document.getElementById('resultado').textContent = 'Conteúdo do QR Code: ' + content;
+
+            // Envia o QR Code para o servidor
+            fetch('http://localhost:3000/api/save-qrcode', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ content: content }),
+            }).then(response => response.json())
+              .then(data => {
+                  console.log(data.message);
+                  loadQRCodes(); // Recarrega a tabela de QR codes
+              }).catch(error => {
+                  console.error('Erro ao enviar dados:', error);
+              });
+        });
+        
+        Instascan.Camera.getCameras().then(function (cameras) {
+            if (cameras.length > 0) {
+                // Tenta selecionar a câmera traseira
+                let rearCamera = cameras.find(camera => camera.name.toLowerCase().includes('back')) || cameras[0];
+                scanner.start(rearCamera);
+            } else {
+                console.error('Nenhuma câmera encontrada.');
+            }
+        }).catch(function (e) {
+            console.error(e);
+        });
+
+        // Carrega os QR Codes salvos e exibe na tabela
+        function loadQRCodes() {
+            fetch('http://localhost:3000/api/qrcodes')
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.getElementById('qrcodeTable');
+                    tableBody.innerHTML = ''; // Limpa a tabela
+                    data.forEach(qr => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td>${qr.content}</td><td>${new Date(qr.timestamp).toLocaleString()}</td>`;
+                        tableBody.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Erro ao carregar QR codes:', error));
+        }
+
+        // Carrega os QR codes ao carregar a página
+        loadQRCodes();
+    </script>
+</body>
+</html>
